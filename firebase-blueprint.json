@@ -1,0 +1,228 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public profile information of an authenticated chopper rider",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the rider",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full display name of the rider",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Google verified email address",
+          "maxLength": 150
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL to the rider avatar photo",
+          "maxLength": 1000
+        },
+        "role": {
+          "type": "string",
+          "description": "Rider classification role",
+          "enum": ["rider", "verified_seller", "collector"],
+          "maxLength": 30
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Verification badge flag"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "displayName", "email", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Encrypted sensitive personal information of the rider (Phone, bank, private notes)",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner UID",
+          "maxLength": 128
+        },
+        "encryptedPhone": {
+          "type": "string",
+          "description": "AES-256 encrypted phone / WhatsApp number",
+          "maxLength": 512
+        },
+        "encryptedNotes": {
+          "type": "string",
+          "description": "AES-256 encrypted private notes",
+          "maxLength": 2048
+        },
+        "encryptedBankAccount": {
+          "type": "string",
+          "description": "AES-256 encrypted bank / rekber account detail",
+          "maxLength": 512
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of encryption / update"
+        }
+      },
+      "required": ["userId", "encryptedPhone", "updatedAt"]
+    },
+    "UserChopperListing": {
+      "title": "UserChopperListing",
+      "description": "Chopper motor listing managed strictly by the authenticated user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique listing identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner rider UID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the motorcycle advertisement",
+          "maxLength": 200
+        },
+        "engineBase": {
+          "type": "string",
+          "description": "Engine donor model",
+          "maxLength": 100
+        },
+        "price": {
+          "type": "number",
+          "description": "Selling price in IDR"
+        },
+        "frameType": {
+          "type": "string",
+          "description": "Frame fabrication type",
+          "maxLength": 50
+        },
+        "style": {
+          "type": "string",
+          "description": "Chopper styling type",
+          "maxLength": 50
+        },
+        "legalStatus": {
+          "type": "string",
+          "description": "BPKB / STNK legal status",
+          "maxLength": 50
+        },
+        "city": {
+          "type": "string",
+          "description": "Location city",
+          "maxLength": 100
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Main motorcycle photo URL or base64 data",
+          "maxLength": 2000000
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed motor description",
+          "maxLength": 4000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Listing creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Listing update timestamp"
+        }
+      },
+      "required": ["id", "userId", "title", "engineBase", "price", "createdAt"]
+    },
+    "UserClaim": {
+      "title": "UserClaim",
+      "description": "Warranty claim submitted by an authenticated customer",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Claim ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Claimant UID",
+          "maxLength": 128
+        },
+        "motorTitle": {
+          "type": "string",
+          "description": "Name of motorcycle unit",
+          "maxLength": 200
+        },
+        "claimCategory": {
+          "type": "string",
+          "description": "Category of compensation claim",
+          "maxLength": 100
+        },
+        "amountClaimed": {
+          "type": "number",
+          "description": "Compensation amount requested in IDR"
+        },
+        "encryptedContact": {
+          "type": "string",
+          "description": "AES-256 encrypted contact / phone number",
+          "maxLength": 512
+        },
+        "description": {
+          "type": "string",
+          "description": "Explanation of issue or damage",
+          "maxLength": 3000
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of claim",
+          "enum": ["pending", "in_review", "approved", "rejected"],
+          "maxLength": 30
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Submission timestamp"
+        }
+      },
+      "required": ["id", "userId", "motorTitle", "claimCategory", "amountClaimed", "encryptedContact", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public profile document for each rider, keyed by Auth UID"
+    },
+    "/users/{userId}/private/info": {
+      "schema": "UserPrivateInfo",
+      "description": "Private sensitive info with AES encryption, readable and writable only by the specific userId"
+    },
+    "/users/{userId}/listings/{listingId}": {
+      "schema": "UserChopperListing",
+      "description": "User's individual chopper listings, readable and editable only by the owner"
+    },
+    "/users/{userId}/claims/{claimId}": {
+      "schema": "UserClaim",
+      "description": "User's warranty claims, readable and editable only by the claimant"
+    }
+  }
+}

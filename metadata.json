@@ -1,0 +1,6 @@
+{
+  "name": "ChopperRide - Marketplace Motor Chopper & Kustom Terkurasi",
+  "description": "Platform marketplace jual-beli motor chopper dan kustom kultur terkurasi di Indonesia dengan inspeksi fisik, garansi rekber escrow, dan sound test cold start.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

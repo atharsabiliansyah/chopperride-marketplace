@@ -1,0 +1,136 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. GLOBAL DEFAULT DENY CATCH-ALL
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. REUSABLE PRIMITIVES & SECURITY HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. ENTITY VALIDATORS
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'email', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'displayName', 'email', 'photoURL', 'role', 'isVerified', 'createdAt', 'updatedAt']) &&
+        data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 150 &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+        (!('role' in data) || (data.role is string && data.role in ['rider', 'verified_seller', 'collector'])) &&
+        (!('isVerified' in data) || data.isVerified is bool) &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidPrivateInfo(data) {
+      return data.keys().hasAll(['userId', 'encryptedPhone', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'encryptedPhone', 'encryptedNotes', 'encryptedBankAccount', 'updatedAt']) &&
+        data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+        data.encryptedPhone is string && data.encryptedPhone.size() <= 512 &&
+        (!('encryptedNotes' in data) || (data.encryptedNotes is string && data.encryptedNotes.size() <= 2048)) &&
+        (!('encryptedBankAccount' in data) || (data.encryptedBankAccount is string && data.encryptedBankAccount.size() <= 512)) &&
+        data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidListing(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'engineBase', 'price', 'createdAt']) &&
+        data.keys().hasOnly([
+          'id', 'userId', 'title', 'engineBase', 'price', 'frameType', 
+          'style', 'legalStatus', 'city', 'imageUrl', 'description', 
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.engineBase is string && data.engineBase.size() <= 100 &&
+        data.price is number && data.price >= 0 &&
+        (!('frameType' in data) || (data.frameType is string && data.frameType.size() <= 50)) &&
+        (!('style' in data) || (data.style is string && data.style.size() <= 50)) &&
+        (!('legalStatus' in data) || (data.legalStatus is string && data.legalStatus.size() <= 50)) &&
+        (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000000)) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 4000)) &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidClaim(data) {
+      return data.keys().hasAll(['id', 'userId', 'motorTitle', 'claimCategory', 'amountClaimed', 'encryptedContact', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'motorTitle', 'claimCategory', 'amountClaimed', 'encryptedContact', 'description', 'status', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+        data.motorTitle is string && data.motorTitle.size() <= 200 &&
+        data.claimCategory is string && data.claimCategory.size() <= 100 &&
+        data.amountClaimed is number && data.amountClaimed >= 0 &&
+        data.encryptedContact is string && data.encryptedContact.size() <= 512 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 3000)) &&
+        (!('status' in data) || (data.status is string && data.status in ['pending', 'in_review', 'approved', 'rejected'])) &&
+        data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // 4. USERS ROOT COLLECTION (Keyed by User UID)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().createdAt == existing().createdAt;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // 5. USER PRIVATE SENSITIVE INFO (Subcollection strictly for Owner)
+      match /private/{docId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(docId) && isValidPrivateInfo(incoming());
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(docId) && isValidPrivateInfo(incoming()) &&
+                      incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+      }
+
+      // 6. USER'S OWN CHOPPER LISTINGS
+      match /listings/{listingId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(listingId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(listingId) && isValidListing(incoming());
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(listingId) && isValidListing(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().id == existing().id &&
+                      incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(listingId);
+      }
+
+      // 7. USER'S OWN CLAIMS
+      match /claims/{claimId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(claimId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(claimId) && isValidClaim(incoming());
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(claimId) && isValidClaim(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(claimId);
+      }
+    }
+  }
+}
